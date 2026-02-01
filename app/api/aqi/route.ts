@@ -13,6 +13,14 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const apiKey = process.env.OPENAQ_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: 'OpenAQ API key not configured. Please add OPENAQ_API_KEY to your .env.local file.' },
+      { status: 500 }
+    );
+  }
+
   try {
     // OpenAQ API v3 - Get latest measurements near coordinates
     const radius = 25000; // 25km radius
@@ -24,7 +32,8 @@ export async function GET(request: NextRequest) {
         'order_by': 'distance'
       },
       headers: {
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'X-API-Key': apiKey
       }
     });
 
@@ -42,7 +51,8 @@ export async function GET(request: NextRequest) {
           `https://api.openaq.org/v3/locations/${locationWithData.id}/latest`,
           {
             headers: {
-              'Accept': 'application/json'
+              'Accept': 'application/json',
+              'X-API-Key': apiKey
             }
           }
         );
@@ -130,4 +140,4 @@ function getAQICategory(aqi: number): string {
   if (aqi <= 200) return 'Unhealthy';
   if (aqi <= 300) return 'Very Unhealthy';
   return 'Hazardous';
-}
+  }
