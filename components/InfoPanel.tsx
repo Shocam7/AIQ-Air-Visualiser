@@ -2,28 +2,58 @@
 
 import { useState } from 'react';
 
-export default function InfoPanel() {
-  const [isOpen, setIsOpen] = useState(false);
+interface InfoPanelProps {
+  aqi: number | null;
+  category: string | null;
+  location: {
+    city: string;
+    country: string;
+  } | null;
+}
+
+export default function InfoPanel({ aqi, category, location }: InfoPanelProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const getAQIColor = (aqiValue: number) => {
+    if (aqiValue <= 50) return '#00e400';
+    if (aqiValue <= 100) return '#ffff00';
+    if (aqiValue <= 150) return '#ff7e00';
+    if (aqiValue <= 200) return '#ff0000';
+    if (aqiValue <= 300) return '#8f3f97';
+    return '#7e0023';
+  };
 
   return (
     <>
-      <button 
-        className="info-button"
-        onClick={() => setIsOpen(!isOpen)}
-        aria-label="Information"
-      >
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="12" cy="12" r="10" />
-          <path d="M12 16v-4M12 8h.01" />
-        </svg>
-      </button>
+      {/* Compact AQI Badge - Top Left */}
+      {aqi !== null && category && (
+        <button 
+          className="aqi-badge"
+          onClick={() => setIsExpanded(true)}
+          style={{ 
+            background: `linear-gradient(135deg, ${getAQIColor(aqi)}dd, ${getAQIColor(aqi)}ff)` 
+          }}
+        >
+          <div className="aqi-badge-content">
+            <div className="aqi-value">{aqi}</div>
+            <div className="aqi-category">{category}</div>
+            {location && (
+              <div className="aqi-location">
+                {location.city}
+              </div>
+            )}
+          </div>
+          <div className="info-icon">ⓘ</div>
+        </button>
+      )}
 
-      {isOpen && (
-        <div className="info-overlay" onClick={() => setIsOpen(false)}>
+      {/* Expanded Information Modal */}
+      {isExpanded && (
+        <div className="info-overlay" onClick={() => setIsExpanded(false)}>
           <div className="info-content" onClick={(e) => e.stopPropagation()}>
             <button 
               className="close-button"
-              onClick={() => setIsOpen(false)}
+              onClick={() => setIsExpanded(false)}
               aria-label="Close"
             >
               ×
@@ -49,7 +79,7 @@ export default function InfoPanel() {
                 </li>
                 <li>
                   <strong>Data Retrieval:</strong> Real-time AQI data is fetched 
-                  from OpenAQ, a global air quality database
+                  from AQICN, the World Air Quality Index project
                 </li>
                 <li>
                   <strong>AI Analysis:</strong> Google Gemini AI analyzes the 
@@ -150,7 +180,7 @@ export default function InfoPanel() {
 
             <section className="credits">
               <h2>Credits</h2>
-              <p><strong>Data:</strong> OpenAQ - Open Air Quality Data</p>
+              <p><strong>Data:</strong> AQICN - World Air Quality Index</p>
               <p><strong>AI:</strong> Google Gemini</p>
               <p><strong>Built with:</strong> Next.js, TypeScript, Canvas API</p>
             </section>
@@ -159,28 +189,69 @@ export default function InfoPanel() {
       )}
 
       <style jsx>{`
-        .info-button {
+        .aqi-badge {
           position: fixed;
           top: 20px;
-          right: 20px;
+          left: 20px;
           z-index: 100;
-          width: 48px;
-          height: 48px;
-          background: rgba(0, 0, 0, 0.7);
-          backdrop-filter: blur(10px);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          border-radius: 50%;
+          min-width: 140px;
+          padding: 12px 20px;
+          border-radius: 50px;
+          border: 2px solid rgba(255, 255, 255, 0.3);
           color: white;
           cursor: pointer;
           display: flex;
           align-items: center;
-          justify-content: center;
+          justify-content: space-between;
+          gap: 12px;
+          backdrop-filter: blur(10px);
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
           transition: all 0.3s ease;
+          font-family: 'Syne', sans-serif;
         }
 
-        .info-button:hover {
-          background: rgba(102, 126, 234, 0.8);
+        .aqi-badge:hover {
           transform: scale(1.05);
+          box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+          border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .aqi-badge-content {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 2px;
+        }
+
+        .aqi-value {
+          font-size: 24px;
+          font-weight: 800;
+          line-height: 1;
+          text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .aqi-category {
+          font-size: 10px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          opacity: 0.95;
+          line-height: 1.2;
+        }
+
+        .aqi-location {
+          font-size: 9px;
+          font-weight: 500;
+          opacity: 0.85;
+          margin-top: 2px;
+          font-family: 'Space Mono', monospace;
+        }
+
+        .info-icon {
+          font-size: 18px;
+          opacity: 0.8;
+          flex-shrink: 0;
         }
 
         .info-overlay {
@@ -197,6 +268,16 @@ export default function InfoPanel() {
           justify-content: center;
           padding: 20px;
           overflow-y: auto;
+          animation: fadeIn 0.2s ease-out;
+        }
+
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
         }
 
         .info-content {
@@ -211,6 +292,18 @@ export default function InfoPanel() {
           box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
           border: 1px solid rgba(255, 255, 255, 0.1);
           color: white;
+          animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+          from {
+            transform: translateY(20px);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0);
+            opacity: 1;
+          }
         }
 
         .close-button {
@@ -318,6 +411,29 @@ export default function InfoPanel() {
         }
 
         @media (max-width: 640px) {
+          .aqi-badge {
+            top: 16px;
+            left: 16px;
+            min-width: 120px;
+            padding: 10px 16px;
+          }
+
+          .aqi-value {
+            font-size: 20px;
+          }
+
+          .aqi-category {
+            font-size: 9px;
+          }
+
+          .aqi-location {
+            font-size: 8px;
+          }
+
+          .info-icon {
+            font-size: 16px;
+          }
+
           .info-content {
             padding: 24px;
           }
@@ -328,13 +444,6 @@ export default function InfoPanel() {
 
           h2 {
             font-size: 20px;
-          }
-
-          .info-button {
-            width: 44px;
-            height: 44px;
-            top: 16px;
-            right: 16px;
           }
         }
 
