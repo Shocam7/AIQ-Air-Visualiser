@@ -28,8 +28,7 @@ export async function GET(request: NextRequest) {
       params: {
         coordinates: `${lat},${lon}`,
         radius,
-        limit: 10,
-        'order_by': 'distance'
+        limit: 10
       },
       headers: {
         'Accept': 'application/json',
@@ -140,4 +139,4 @@ function getAQICategory(aqi: number): string {
   if (aqi <= 200) return 'Unhealthy';
   if (aqi <= 300) return 'Very Unhealthy';
   return 'Hazardous';
-  }
+}
