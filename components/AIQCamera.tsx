@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { ParticleSimulation, ParticleConfig } from '@/lib/particleSimulation';
+import InfoPanel from '@/components/InfoPanel';
 
 interface AQIData {
   location: {
@@ -183,6 +184,13 @@ export default function AIQCamera() {
       <canvas
         ref={canvasRef}
         className="particle-canvas"
+      />
+
+      {/* AQI Badge - Top Left */}
+      <InfoPanel 
+        aqi={aqiData?.aqi || null}
+        category={aqiData?.category || null}
+        location={aqiData ? { city: aqiData.location.city, country: aqiData.location.country } : null}
       />
 
       <div className="controls-overlay">
