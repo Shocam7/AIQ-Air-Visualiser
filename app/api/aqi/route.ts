@@ -13,94 +13,93 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const apiKey = process.env.OPENAQ_API_KEY;
-  if (!apiKey) {
+  const apiToken = process.env.AQICN_API_TOKEN;
+  if (!apiToken) {
     return NextResponse.json(
-      { error: 'OpenAQ API key not configured. Please add OPENAQ_API_KEY to your .env.local file.' },
+      { error: 'AQICN API token not configured. Please add AQICN_API_TOKEN to your .env.local file. Get your token at https://aqicn.org/data-platform/token/' },
       { status: 500 }
     );
   }
 
   try {
-    // OpenAQ API v3 - Get latest measurements near coordinates
-    const radius = 25000; // 25km radius
-    const response = await axios.get('https://api.openaq.org/v3/locations', {
-      params: {
-        coordinates: `${lat},${lon}`,
-        radius,
-        limit: 10
-      },
-      headers: {
-        'Accept': 'application/json',
-        'X-API-Key': apiKey
-      }
-    });
-
-    if (response.data && response.data.results && response.data.results.length > 0) {
-      const locations = response.data.results;
-      
-      // Get the first location with valid measurements
-      const locationWithData = locations.find((loc: any) => 
-        loc.parameters && loc.parameters.length > 0
-      );
-
-      if (locationWithData) {
-        // Fetch latest measurements for this location
-        const measurementsResponse = await axios.get(
-          `https://api.openaq.org/v3/locations/${locationWithData.id}/latest`,
-          {
-            headers: {
-              'Accept': 'application/json',
-              'X-API-Key': apiKey
-            }
-          }
-        );
-
-        const measurements = measurementsResponse.data?.results?.measurements || [];
-        
-        // Extract relevant pollutants
-        const pollutants = measurements.map((m: any) => ({
-          parameter: m.parameter?.name || m.parameter,
-          value: m.value,
-          unit: m.unit,
-          lastUpdated: m.datetime?.last || m.datetime
-        }));
-
-        // Calculate overall AQI (simplified US EPA formula)
-        const pm25 = measurements.find((m: any) => 
-          m.parameter?.name === 'pm25' || m.parameter === 'pm25'
-        );
-        
-        let aqi = 0;
-        let category = 'Unknown';
-        
-        if (pm25 && pm25.value !== null) {
-          aqi = calculateAQI(pm25.value);
-          category = getAQICategory(aqi);
+    // AQICN API - Get data for geo coordinates
+    const response = await axios.get(
+      `https://api.waqi.info/feed/geo:${lat};${lon}/`,
+      {
+        params: {
+          token: apiToken
         }
+      }
+    );
 
-        return NextResponse.json({
-          location: {
-            name: locationWithData.name,
-            city: locationWithData.city,
-            country: locationWithData.country,
-            coordinates: locationWithData.coordinates
-          },
-          aqi,
-          category,
-          pollutants,
-          timestamp: new Date().toISOString()
-        });
+    if (response.data.status !== 'ok') {
+      return NextResponse.json({
+        error: 'No air quality data found for this location',
+        message: 'Try a different location or check back later'
+      }, { status: 404 });
+    }
+
+    const data = response.data.data;
+
+    // Extract pollutants from iaqi (individual air quality index)
+    const pollutants = [];
+    if (data.iaqi) {
+      const pollutantMap: { [key: string]: string } = {
+        'pm25': 'PM2.5',
+        'pm10': 'PM10',
+        'o3': 'O3',
+        'no2': 'NO2',
+        'so2': 'SO2',
+        'co': 'CO'
+      };
+
+      for (const [key, label] of Object.entries(pollutantMap)) {
+        if (data.iaqi[key]) {
+          pollutants.push({
+            parameter: label,
+            value: data.iaqi[key].v,
+            unit: key === 'co' ? 'mg/m³' : 'µg/m³',
+            lastUpdated: data.time?.iso || new Date().toISOString()
+          });
+        }
       }
     }
 
+    // Get AQI value and category
+    const aqi = data.aqi || 0;
+    const category = getAQICategory(aqi);
+
     return NextResponse.json({
-      error: 'No air quality data found for this location',
-      message: 'Try a different location or check back later'
-    }, { status: 404 });
+      location: {
+        name: data.city?.name || 'Unknown',
+        city: data.city?.name || 'Unknown',
+        country: data.city?.country || 'Unknown',
+        coordinates: {
+          latitude: data.city?.geo?.[0] || parseFloat(lat),
+          longitude: data.city?.geo?.[1] || parseFloat(lon)
+        }
+      },
+      aqi,
+      category,
+      pollutants,
+      timestamp: data.time?.iso || new Date().toISOString(),
+      attribution: data.attributions || []
+    });
 
   } catch (error: any) {
-    console.error('OpenAQ API Error:', error.response?.data || error.message);
+    console.error('AQICN API Error:', error.response?.data || error.message);
+    
+    // Check if it's a token error
+    if (error.response?.data?.data === 'Invalid key') {
+      return NextResponse.json(
+        { 
+          error: 'Invalid AQICN API token',
+          details: 'Please check your API token at https://aqicn.org/data-platform/token/'
+        },
+        { status: 401 }
+      );
+    }
+    
     return NextResponse.json(
       { 
         error: 'Failed to fetch air quality data',
@@ -109,27 +108,6 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-// Simplified AQI calculation for PM2.5 (US EPA)
-function calculateAQI(pm25: number): number {
-  const breakpoints = [
-    { cLow: 0, cHigh: 12, iLow: 0, iHigh: 50 },
-    { cLow: 12.1, cHigh: 35.4, iLow: 51, iHigh: 100 },
-    { cLow: 35.5, cHigh: 55.4, iLow: 101, iHigh: 150 },
-    { cLow: 55.5, cHigh: 150.4, iLow: 151, iHigh: 200 },
-    { cLow: 150.5, cHigh: 250.4, iLow: 201, iHigh: 300 },
-    { cLow: 250.5, cHigh: 500, iLow: 301, iHigh: 500 }
-  ];
-
-  for (const bp of breakpoints) {
-    if (pm25 >= bp.cLow && pm25 <= bp.cHigh) {
-      const aqi = ((bp.iHigh - bp.iLow) / (bp.cHigh - bp.cLow)) * (pm25 - bp.cLow) + bp.iLow;
-      return Math.round(aqi);
-    }
-  }
-
-  return 500; // Hazardous
 }
 
 function getAQICategory(aqi: number): string {
