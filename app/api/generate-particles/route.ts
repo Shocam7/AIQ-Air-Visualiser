@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const prompt = `You are an air quality visualization expert. Based on the following air quality data, generate a JavaScript particle simulation configuration that will be used to render air particles on a canvas overlay.
 
